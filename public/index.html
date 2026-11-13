@@ -197,8 +197,10 @@ function handleScanned(code){
    const name=p.name||p.description||p.code;
    $('scanStatus').textContent='Este producto ya existe en tu catálogo.';
    if(confirm('El producto "'+name+'" (SKU '+p.code+') ya está registrado en tu catálogo. ¿Quieres editarlo ahora?')){
-    window.editProduct(encodeURIComponent(p.code));
-    $('scanStatus').textContent='Editando el producto existente. Guarda los cambios cuando termines.';
+    fillRegister(p);
+    $('scanStatus').textContent='Información cargada: revisa o modifica los datos y las existencias. Al guardar se actualizará este mismo producto, sin duplicarlo.';
+    $('name').focus();
+    $('registerView').scrollIntoView({behavior:'smooth',block:'start'});
    }else{
     $('scanStatus').textContent='El producto ya existe. No se creó un registro duplicado.';
    }
