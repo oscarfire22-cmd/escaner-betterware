@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<meta name="description" content="Catálogo local de productos Betterware con escáner de códigos de barras.">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Escáner Betterware</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#131e30;--panel2:#1b2940;--line:#2b3a52;--txt:#f4f7fb;--muted:#a9b6c9;--pink:#ec4899;--blue:#38bdf8;--green:#34d399;--red:#fb7185}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#101a2b,#080e19 65%);color:var(--txt);font:15px system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+header{padding:22px 18px 16px;background:#101827;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:4}
+h1{font-size:22px;margin:0;letter-spacing:.2px}header p{margin:5px 0 0;color:var(--muted);font-size:12px}
+main{max-width:980px;margin:auto;padding:16px; padding-bottom:48px}
+.tabs{display:flex;gap:8px;margin:0 0 14px}.tab{flex:1;border:1px solid var(--line);background:var(--panel);color:var(--muted);padding:12px 8px;border-radius:12px;font-weight:700}.tab.active{background:#26364f;color:white;border-color:#547095}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:14px;box-shadow:0 10px 28px #0002}
+h2{font-size:17px;margin:0 0 12px}.hint{color:var(--muted);font-size:12px;line-height:1.5}
+button,.filebtn{border:0;border-radius:12px;padding:12px 14px;font-weight:750;background:var(--pink);color:#fff;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+button.secondary,.filebtn.secondary{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+button.good{background:#087e65}button.danger{background:#7f2940}button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions>*{flex:1}
+label{display:block;color:var(--muted);font-size:12px;font-weight:650;margin:10px 0 5px}
+input{width:100%;border:1px solid var(--line);background:#0c1524;color:var(--txt);border-radius:10px;padding:12px;font:inherit;outline:none}
+input:focus{border-color:var(--blue)}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:var(--panel2);border-radius:12px;padding:11px}.stat b{font-size:20px;display:block}.stat span{font-size:11px;color:var(--muted)}
+#scanner{width:100%;max-height:300px;background:#05080e;border-radius:12px;display:none;object-fit:cover}
+#scanStatus{margin:10px 0;color:var(--muted);font-size:13px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.toolbar input{flex:1;min-width:160px}
+.product{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;gap:10px;align-items:center;border-top:1px solid var(--line);padding:12px 0}
+.product:first-child{border-top:0}.code{font-size:12px;color:var(--blue);overflow-wrap:anywhere}.name{font-weight:700;margin:3px 0}.prices{font-size:12px;color:var(--muted);line-height:1.6}.profit{color:var(--green);font-weight:700}
+.product button{padding:8px 10px;font-size:12px}
+.empty{text-align:center;color:var(--muted);padding:24px 8px}
+#editor{display:none}.notice{padding:10px 12px;background:#172b3c;border:1px solid #2a5268;border-radius:10px;color:#cceeff;font-size:12px;line-height:1.5}
+footer{text-align:center;color:#75849a;font-size:11px;padding:16px}
+@media(max-width:560px){.product{grid-template-columns:1fr auto}.prices{grid-column:1}.product button{grid-column:2;grid-row:1/3}.row{grid-template-columns:1fr}.stat b{font-size:17px}}
+</style>
+</head>
+<body>
+<header><h1>▦ Escáner Betterware</h1><p>Tu catálogo de productos · Guarda la información en este teléfono</p></header>
+<main>
+<div class="tabs">
+<button class="tab active" id="tabRegister">Registrar</button>
+<button class="tab" id="tabLookup">Consultar</button>
+<button class="tab" id="tabCatalog">Catálogo</button>
+</div>
+<video id="scanner" playsinline muted></video>
+<section id="registerView">
+<div class="card">
+<h2>Escanear y registrar producto</h2>
+<div class="actions"><button id="startCamera">▣ Escanear para registrar</button><button class="secondary" id="verifyCamera">⌕ Verificar en Betterware</button><button class="secondary" id="stopCamera" disabled>Detener cámara</button></div>
+<div id="scanStatus">Elige si quieres registrar el producto o verificar su SKU directamente en la tienda oficial. Si tu navegador no admite el escáner integrado, puedes escribir el código manualmente.</div>
+<div class="actions" style="margin:10px 0"><button id="fetchBetterware" class="secondary">Consultar datos de Betterware</button></div>
+<div id="betterwareResult" aria-live="polite"></div>
+<label for="barcode">Código de barras</label><input id="barcode" inputmode="numeric" autocomplete="off" placeholder="Escanea o escribe el código">
+<label for="name">Nombre del producto</label><input id="name" autocomplete="off" placeholder="Ej. Organizador multiusos" required>
+<label for="description">Descripción</label><input id="description" autocomplete="off" placeholder="Detalles del producto (opcional)">
+<div class="row">
+<div><label for="cost">Costo unitario ($)</label><input id="cost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+<div><label for="sale">Precio de venta al cliente ($)</label><input id="sale" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+</div>
+<div class="hint" id="profitPreview">Ganancia por unidad: $0.00</div>
+<div class="notice" style="margin-top:12px">Precios de la tienda Betterware (opcionales). Son independientes de tu costo y de tu precio de venta.</div>
+<div class="row">
+<div><label for="regularPrice">Precio regular Betterware ($)</label><input id="regularPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ej. 800.00"></div>
+<div><label for="promoPrice">Precio promocional Betterware ($)</label><input id="promoPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Ej. 499.00"></div>
+</div>
+<label for="promoType">Tipo de promoción</label><input id="promoType" placeholder="Ej. Mega oferta, hiper oferta, descuento directo">
+<label for="promoConditions">Condiciones para obtener el precio promocional</label><input id="promoConditions" placeholder="Ej. Al comprar 3 productos del catálogo o $400 de catálogo vigente">
+<label for="promoValidUntil">Vigencia / campaña</label><input id="promoValidUntil" placeholder="Ej. Catálogo noviembre 2026 / fecha de término">
+<div class="actions" style="margin-top:14px"><button id="saveProduct" class="good">Guardar producto</button><button id="clearForm" class="secondary">Limpiar</button></div>
+</div>
+<div class="notice">Si escaneas un código que ya existe, el sistema te mostrará la descripción y los precios guardados para que puedas consultarlos o editarlos.</div>
+</section>
+<section id="lookupView" hidden>
+<div class="card">
+<h2>Consultar un producto</h2>
+<div class="actions"><button id="lookupCamera">▣ Escanear para consultar</button></div>
+<label for="lookupCode">O escribe el código de barras</label><input id="lookupCode" inputmode="numeric" placeholder="Código de barras">
+<button id="lookupButton" style="width:100%;margin-top:10px">Buscar producto</button>
+<div id="lookupResult"></div>
+</div>
+</section>
+<section id="catalogView" hidden>
+<div class="card">
+<h2>Mi catálogo</h2>
+<div class="statgrid"><div class="stat"><b id="totalCount">0</b><span>Productos</span></div><div class="stat"><b id="totalValue">$0</b><span>Costo acumulado*</span></div><div class="stat"><b id="totalProfit">$0</b><span>Ganancia potencial*</span></div></div>
+<p class="hint">*Los totales consideran únicamente productos con costo capturado; los demás quedan pendientes.</p>
+<div class="toolbar"><input id="filter" placeholder="Buscar por código o descripción"><button class="secondary" id="exportCsv">Exportar CSV</button></div>
+<div class="actions" style="margin-bottom:12px"><label class="filebtn secondary" for="importCsv">Importar CSV</label><input id="importCsv" type="file" accept=".csv,text/csv" hidden><button class="secondary" id="downloadTemplate">Plantilla CSV</button></div>
+<div id="productList"></div>
+</div>
+</section>
+<section class="card" id="editor">
+<h2 id="editorTitle">Editar producto</h2>
+<input id="editCode" type="hidden">
+<label for="editName">Nombre del producto</label><input id="editName">
+<label for="editDescription">Descripción (opcional)</label><input id="editDescription">
+<div class="row"><div><label for="editCost">Costo unitario ($)</label><input id="editCost" type="number" min="0" step="0.01"></div><div><label for="editSale">Precio de venta al cliente ($)</label><input id="editSale" type="number" min="0" step="0.01"></div></div>
+<div class="notice" style="margin-top:12px">Precios y condiciones publicados por Betterware</div>
+<div class="row"><div><label for="editRegularPrice">Precio regular Betterware ($)</label><input id="editRegularPrice" type="number" min="0" step="0.01"></div><div><label for="editPromoPrice">Precio promocional Betterware ($)</label><input id="editPromoPrice" type="number" min="0" step="0.01"></div></div>
+<label for="editPromoType">Tipo de promoción</label><input id="editPromoType">
+<label for="editPromoConditions">Condiciones de la promoción</label><input id="editPromoConditions">
+<label for="editPromoValidUntil">Vigencia / campaña</label><input id="editPromoValidUntil">
+<div class="actions" style="margin-top:12px"><button id="updateProduct" class="good">Guardar cambios</button><button id="cancelEdit" class="secondary">Cancelar</button></div>
+</section>
+<footer>Los datos se guardan localmente en este navegador. Exporta respaldos CSV periódicamente. Los precios y promociones de Betterware pueden cambiar; verifica su vigencia antes de aplicarlos.</footer>
+</main>
+<script>
+const DB_KEY='betterware_catalog_v1';
+let products=loadProducts(), stream=null, detector=null, scanning=false, scanMode='register', lastScan='';
+const BETTERWARE_SEARCH='https://betterware.com.mx/search?pws=veromedina&q=';
+const $=id=>document.getElementById(id);
+function loadProducts(){try{const data=JSON.parse(localStorage.getItem(DB_KEY)||'[]');return Array.isArray(data)?data.map(p=>({...p,code:String(p.code??''),name:String(p.name??p.description??''),description:String(p.description??''),cost:p.cost===''||p.cost===undefined?null:p.cost})):[]}catch{return []}}
+function openBetterwareSearch(code){return BETTERWARE_SEARCH+encodeURIComponent(String(code).trim())}
+async function fetchBetterwareProduct(code){
+ const clean=String(code||'').trim();if(!clean)throw new Error('Primero escanea o escribe el código.');
+ const response=await fetch('/.netlify/functions/betterware-product?sku='+encodeURIComponent(clean),{headers:{'Accept':'application/json'}});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(data.error||'No se encontraron datos oficiales para este código.');
+ return data;
+}
+function showBetterwareResult(data){
+ const image=data.image?`<img src="${escapeHtml(data.image)}" alt="${escapeHtml(data.name)}" style="width:100%;max-width:130px;max-height:130px;object-fit:contain;border-radius:10px;background:#fff">`:'';
+ const link=data.url?`<a href="${escapeHtml(data.url)}" target="_blank" rel="noopener">Abrir ficha oficial de Betterware</a>`:'';
+ $('betterwareResult').innerHTML=`<div class="notice" style="margin-top:10px"><div style="display:flex;gap:12px;align-items:flex-start">${image}<div><strong>${escapeHtml(data.name||'Producto encontrado')}</strong><p>${escapeHtml(data.description||'Sin descripción publicada.')}</p><p>Precio regular: ${data.regularPrice!=null?money(data.regularPrice):'No publicado'}<br>Precio promocional: ${data.promoPrice!=null?money(data.promoPrice):'No publicado'}</p>${data.promoNote?`<p>${escapeHtml(data.promoNote)}</p>`:''}${link}</div></div></div>`;
+}
+async function consultBetterware(code,mode='register'){
+ const sku=String(code||$('barcode').value).trim();
+ if(!sku){$('scanStatus').textContent='Escanea o escribe un código antes de consultar.';return}
+ $('scanStatus').textContent='Consultando la ficha oficial de Betterware…';$('fetchBetterware').disabled=true;
+ try{
+  const data=await fetchBetterwareProduct(sku);showBetterwareResult(data);
+  if(mode==='register'){
+   if(!$('name').value.trim())$('name').value=data.name||'';
+   if(!$('description').value.trim())$('description').value=data.description||'';
+   if($('regularPrice').value===''&&data.regularPrice!=null)$('regularPrice').value=data.regularPrice;
+   if($('promoPrice').value===''&&data.promoPrice!=null)$('promoPrice').value=data.promoPrice;
+   $('scanStatus').textContent='Datos oficiales encontrados. Revisa la información y completa tu costo (opcional) y precio de venta.';
+  }else $('scanStatus').textContent='Verificación terminada. No se modificó tu catálogo.';
+ }catch(err){$('betterwareResult').innerHTML=`<div class="notice" style="margin-top:10px">No se pudo recuperar la ficha automáticamente: ${escapeHtml(err.message)}. Puedes abrir la búsqueda oficial o capturar los datos manualmente.<p><a href="${openBetterwareSearch(sku)}" target="_blank" rel="noopener">Buscar este código en Betterware</a></p></div>`;$('scanStatus').textContent='Consulta automática no disponible.'}
+ finally{$('fetchBetterware').disabled=false}
+}
+function persist(){localStorage.setItem(DB_KEY,JSON.stringify(products));render()}
+function money(n){return Number(n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'})}
+function escapeHtml(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function setTab(tab){stopCamera();['register','lookup','catalog'].forEach(x=>{$(x+'View').hidden=x!==tab;$('tab'+x[0].toUpperCase()+x.slice(1)).classList.toggle('active',x===tab)});$('editor').style.display='none';if(tab==='catalog')render()}
+$('tabRegister').onclick=()=>setTab('register');$('tabLookup').onclick=()=>setTab('lookup');$('tabCatalog').onclick=()=>setTab('catalog');
+function updateProfit(){if($('cost').value===''){$('profitPreview').textContent='Ganancia pendiente: captura el costo unitario cuando lo conozcas.';return}$('profitPreview').textContent='Ganancia por unidad: '+money((Number($('sale').value)||0)-Number($('cost').value))}
+$('cost').oninput=$('sale').oninput=updateProfit;
+function clearForm(){['barcode','name','description','cost','sale','regularPrice','promoPrice','promoType','promoConditions','promoValidUntil'].forEach(id=>$(id).value='');$('betterwareResult').innerHTML='';$('scanStatus').textContent='Listo para escanear o capturar un producto.';updateProfit();$('barcode').focus()}
+$('clearForm').onclick=clearForm;
+function findProduct(code){return products.find(p=>p.code===String(code).trim())}
+function fillRegister(p){$('barcode').value=p.code;$('name').value=p.name||p.description||'';$('description').value=p.description||'';$('cost').value=p.cost??'';$('sale').value=p.sale;$('regularPrice').value=p.regularPrice??'';$('promoPrice').value=p.promoPrice??'';$('promoType').value=p.promoType??'';$('promoConditions').value=p.promoConditions??'';$('promoValidUntil').value=p.promoValidUntil??'';updateProfit()}
+$('saveProduct').onclick=()=>{
+ const code=$('barcode').value.trim(),name=$('name').value.trim(),description=$('description').value.trim(),cost=$('cost').value===''?null:Number($('cost').value),sale=Number($('sale').value);
+ if(!code)return alert('Escanea o escribe un código de barras.');
+ if(!name)return alert('Escribe el nombre del producto.');
+ if(($('cost').value!==''&&(!Number.isFinite(cost)||cost<0))||$('sale').value===''||!Number.isFinite(sale)||sale<0)return alert('Captura un precio de venta válido. El costo puede quedar vacío.');
+ const regularPrice=$('regularPrice').value===''?null:Number($('regularPrice').value),promoPrice=$('promoPrice').value===''?null:Number($('promoPrice').value);if((regularPrice!==null&&(!Number.isFinite(regularPrice)||regularPrice<0))||(promoPrice!==null&&(!Number.isFinite(promoPrice)||promoPrice<0)))return alert('Revisa los precios de Betterware.');
+ const old=findProduct(code);
+ const promo={regularPrice,promoPrice,promoType:$('promoType').value.trim(),promoConditions:$('promoConditions').value.trim(),promoValidUntil:$('promoValidUntil').value.trim(),promoCheckedAt:new Date().toISOString()};
+ if(old){Object.assign(old,{name,description,cost,sale,...promo,updatedAt:new Date().toISOString()})}
+ else products.push({code,name,description,cost,sale,...promo,createdAt:new Date().toISOString()});
+ persist();alert(old?'Producto actualizado.':'Producto guardado.');clearForm();
+};
+let zxingReader=null;
+async function startCamera(mode){
+ scanMode=mode;const video=$('scanner');
+ // No abrir ventanas emergentes: en Android pueden parpadear y cerrarse.
+ // La búsqueda oficial se abrirá en esta misma pestaña después de detectar el SKU.
+ try{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('El navegador no permite acceder a la cámara. Abre la app desde HTTPS.');
+  // Mantiene el lector nativo original cuando está disponible.
+  if('BarcodeDetector'in window){detector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','codabar']});}
+  else{
+   if(!window.ZXing)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';script.onload=resolve;script.onerror=()=>reject(new Error('No se pudo cargar el lector alternativo. Revisa tu conexión e inténtalo otra vez.'));document.head.appendChild(script)});
+   zxingReader=new ZXing.BrowserMultiFormatReader();
+  }
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  video.srcObject=stream;video.style.display='block';await video.play();scanning=true;$('startCamera').disabled=true;$('stopCamera').disabled=false;$('scanStatus').textContent='Cámara activa. Centra el código de barras dentro de la imagen.';
+  if(detector)scanLoop();else zxingReader.decodeFromVideoElement(video,(result,error)=>{if(!scanning||!result)return;const code=result.getText();if(code&&code!==lastScan){lastScan=code;navigator.vibrate?.(80);handleScanned(code);if(scanMode==='lookup'||scanMode==='verify'||scanMode==='register')stopCamera();setTimeout(()=>lastScan='',1300)}});
+ }catch(e){alert('No se pudo abrir la cámara: '+(e.message||'Revisa el permiso y abre la aplicación desde HTTPS.'));stopCamera()}
+}
+async function scanLoop(){if(!scanning||!detector)return;try{const codes=await detector.detect($('scanner'));if(codes.length){const code=codes[0].rawValue;if(code&&code!==lastScan){lastScan=code;navigator.vibrate?.(80);handleScanned(code);if(scanMode==='lookup'||scanMode==='verify'||scanMode==='register')stopCamera();setTimeout(()=>lastScan='',1300)}}}catch(e){}if(scanning)requestAnimationFrame(scanLoop)}
+function handleScanned(code){
+ if(scanMode==='verify'){ $('barcode').value=code;consultBetterware(code,'verify');return; }
+ if(scanMode==='lookup'){$('lookupCode').value=code;lookup(code)}
+ else{const p=findProduct(code);$('barcode').value=code;if(p){fillRegister(p);$('scanStatus').textContent='Este código ya está registrado. Se cargaron tus datos guardados.'}else{$('name').focus();$('scanStatus').textContent='Código nuevo detectado. Consultando Betterware…';consultBetterware(code,'register')}}
+}
+function stopCamera(){scanning=false;if(zxingReader){try{zxingReader.reset()}catch(e){}zxingReader=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('scanner').srcObject=null;$('scanner').style.display='none';$('startCamera').disabled=false;$('stopCamera').disabled=true}
+$('startCamera').onclick=()=>startCamera('register');$('verifyCamera').onclick=()=>startCamera('verify');$('stopCamera').onclick=stopCamera;$('lookupCamera').onclick=()=>startCamera('lookup');$('fetchBetterware').onclick=()=>consultBetterware($('barcode').value,'register');$('barcode').addEventListener('keydown',e=>{if(e.key==='Enter')consultBetterware($('barcode').value,'register')});
+function lookup(code){const p=findProduct(code);$('lookupResult').innerHTML=p?`<div class="card" style="margin-top:14px"><div class="code">${escapeHtml(p.code)}</div><h2 style="margin:6px 0">${escapeHtml(p.name||p.description||'Producto')}</h2><p>${escapeHtml(p.description||'')}</p><div class="row"><div class="stat"><span>Costo unitario</span><b>${p.cost==null?'No capturado':money(p.cost)}</b></div><div class="stat"><span>Precio de venta</span><b>${money(p.sale)}</b></div></div><p>Precio regular Betterware: ${p.regularPrice==null?'No capturado':money(p.regularPrice)}<br>Precio promocional Betterware: ${p.promoPrice==null?'No capturado':money(p.promoPrice)}</p><p class="profit">${p.cost==null?'Ganancia pendiente':('Ganancia por unidad: '+money(p.sale-p.cost))}</p><button class="secondary" onclick="editProduct('${encodeURIComponent(p.code)}')">Editar producto</button></div>`:`<div class="empty">No se encontró ese código. Puedes registrarlo desde la pestaña Registrar.</div>`}
+$('lookupButton').onclick=()=>lookup($('lookupCode').value.trim());$('lookupCode').addEventListener('keydown',e=>{if(e.key==='Enter')lookup($('lookupCode').value.trim())});
+function render(){
+ $('totalCount').textContent=products.length;
+ const withCost=products.filter(p=>p.cost!==null&&p.cost!==undefined&&p.cost!=='');$('totalValue').textContent=money(withCost.reduce((s,p)=>s+Number(p.cost||0),0));$('totalProfit').textContent=withCost.length?money(withCost.reduce((s,p)=>s+Number(p.sale||0)-Number(p.cost||0),0)):'Pendiente';
+ const q=($('filter').value||'').toLowerCase();
+ const filtered=products.filter(p=>String(p.code??'').toLowerCase().includes(q)||String(p.name??'').toLowerCase().includes(q)||String(p.description??'').toLowerCase().includes(q));
+ $('productList').innerHTML=filtered.length?filtered.slice().sort((a,b)=>String(a.name||a.description||'').localeCompare(String(b.name||b.description||''),'es')).map(p=>`<div class="product"><div><div class="code">${escapeHtml(p.code)}</div><div class="name">${escapeHtml(p.name||p.description||'Sin nombre')}</div>${p.description?'<small>'+escapeHtml(p.description)+'</small>':''}</div><div class="prices">Costo: ${p.cost==null?'No capturado':money(p.cost)}<br>Venta cliente: ${money(p.sale)}<br>${p.regularPrice!=null?'Regular BW: '+money(p.regularPrice)+'<br>':''}${p.promoPrice!=null?'Promo BW: '+money(p.promoPrice)+'<br>':''}${p.promoConditions?'Condición: '+escapeHtml(p.promoConditions)+'<br>':''}<span class="profit">${p.cost==null?'Ganancia pendiente':'Ganancia: '+money(p.sale-p.cost)}</span></div><button class="secondary" onclick="editProduct('${encodeURIComponent(p.code)}')">Editar</button></div>`).join(''):'<div class="empty">Todavía no hay productos. Escanea tu primer producto en la pestaña Registrar.</div>';
+}
+$('filter').oninput=render;
+window.editProduct=function(encoded){const code=decodeURIComponent(encoded),p=findProduct(code);if(!p)return;$('editCode').value=code;$('editName').value=p.name||p.description||'';$('editDescription').value=p.description||'';$('editCost').value=p.cost??'';$('editSale').value=p.sale;$('editRegularPrice').value=p.regularPrice??'';$('editPromoPrice').value=p.promoPrice??'';$('editPromoType').value=p.promoType??'';$('editPromoConditions').value=p.promoConditions??'';$('editPromoValidUntil').value=p.promoValidUntil??'';$('editor').style.display='block';$('editorTitle').textContent='Editar: '+code;window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})};
+$('updateProduct').onclick=()=>{const p=findProduct($('editCode').value);if(!p)return;const n=$('editName').value.trim(),d=$('editDescription').value.trim(),c=$('editCost').value===''?null:Number($('editCost').value),s=Number($('editSale').value),rp=$('editRegularPrice').value===''?null:Number($('editRegularPrice').value),pp=$('editPromoPrice').value===''?null:Number($('editPromoPrice').value);if(!n||($('editCost').value!==''&&(!Number.isFinite(c)||c<0))||$('editSale').value===''||!Number.isFinite(s)||s<0||(rp!==null&&(!Number.isFinite(rp)||rp<0))||(pp!==null&&(!Number.isFinite(pp)||pp<0)))return alert('Revisa el nombre y los precios. El costo es opcional.');Object.assign(p,{name:n,description:d,cost:c,sale:s,regularPrice:rp,promoPrice:pp,promoType:$('editPromoType').value.trim(),promoConditions:$('editPromoConditions').value.trim(),promoValidUntil:$('editPromoValidUntil').value.trim(),promoCheckedAt:new Date().toISOString(),updatedAt:new Date().toISOString()});persist();$('editor').style.display='none'};
+$('cancelEdit').onclick=()=>$('editor').style.display='none';
+function csvCell(v){const s=String(v??'');return '"'+s.replace(/"/g,'""')+'"'}
+function download(name,content,type='text/csv;charset=utf-8;'){const blob=new Blob(['\ufeff'+content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();URL.revokeObjectURL(url)}
+$('exportCsv').onclick=()=>{if(!products.length)return alert('No hay productos para exportar.');const rows=[['codigo_barras','nombre','descripcion','costo_unitario','precio_venta','precio_regular_betterware','precio_promocional_betterware','tipo_promocion','condiciones_promocion','vigencia_campana'],...products.map(p=>[p.code,p.name||p.description,p.description,p.cost??'',p.sale,p.regularPrice??'',p.promoPrice??'',p.promoType??'',p.promoConditions??'',p.promoValidUntil??''])];download('catalogo-betterware.csv',rows.map(r=>r.map(csvCell).join(',')).join('\r\n'))};
+$('downloadTemplate').onclick=()=>download('plantilla-betterware.csv',[['codigo_barras','nombre','descripcion','costo_unitario','precio_venta','precio_regular_betterware','precio_promocional_betterware','tipo_promocion','condiciones_promocion','vigencia_campana'],['7500000000000','Ejemplo de producto','Descripción opcional','','150.00','','','','','']].map(r=>r.map(csvCell).join(',')).join('\r\n'));
+function parseCSV(text){const rows=[];let row=[],field='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];if(quoted){if(c==='"'&&n==='"'){field+='"';i++}else if(c==='"')quoted=false;else field+=c}else if(c==='"')quoted=true;else if(c===','){row.push(field);field=''}else if(c==='\n'){row.push(field);rows.push(row);row=[];field=''}else if(c!=='\r')field+=c}row.push(field);if(row.some(x=>x!==''))rows.push(row);return rows}
+$('importCsv').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const rows=parseCSV(await file.text());if(rows.length<2)throw Error('El archivo no contiene productos.');const head=rows.shift().map(x=>x.trim().toLowerCase().replace(/^\ufeff/,''));const idx=k=>head.indexOf(k);if(idx('codigo_barras')<0||idx('precio_venta')<0||idx('nombre')<0)throw Error('Faltan columnas. Usa la plantilla CSV de esta aplicación.');let added=0,updated=0;for(const r of rows){const code=(r[idx('codigo_barras')]||'').trim(),name=(r[idx('nombre')]||'').trim(),description=idx('descripcion')>=0?(r[idx('descripcion')]||'').trim():'',cost=idx('costo_unitario')<0||(r[idx('costo_unitario')]||'').trim()===''?null:Number(r[idx('costo_unitario')]),sale=Number(r[idx('precio_venta')]);if(!code||!name||(cost!==null&&(!Number.isFinite(cost)||cost<0))||!Number.isFinite(sale)||sale<0)continue;const optional=k=>idx(k)>=0?(r[idx(k)]||'').trim():'';const promo={regularPrice:optional('precio_regular_betterware')===''?null:Number(optional('precio_regular_betterware')),promoPrice:optional('precio_promocional_betterware')===''?null:Number(optional('precio_promocional_betterware')),promoType:optional('tipo_promocion'),promoConditions:optional('condiciones_promocion'),promoValidUntil:optional('vigencia_campana')};const old=findProduct(code);if(old){Object.assign(old,{name,description,cost,sale,...promo});updated++}else{products.push({code,name,description,cost,sale,...promo});added++}}persist();alert(`Importación terminada. Nuevos: ${added}. Actualizados: ${updated}.`)}catch(err){alert('No se pudo importar: '+err.message)}e.target.value=''};
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+render();updateProfit();
+</script>
+</body></html>
