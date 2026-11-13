@@ -190,7 +190,24 @@ async function scanLoop(){if(!scanning||!detector)return;try{const codes=await d
 function handleScanned(code){
  if(scanMode==='verify'){ $('barcode').value=code;stopCamera();$('scanStatus').textContent='Código detectado. Abriendo la búsqueda oficial de Betterware…';window.location.assign(openBetterwareSearch(code));return; }
  if(scanMode==='lookup'){$('lookupCode').value=code;lookup(code)}
- else{const p=findProduct(code);$('barcode').value=code;if(p){fillRegister(p);$('scanStatus').textContent='Este código ya está registrado. Se cargaron tus datos guardados.'}else{$('name').focus();$('scanStatus').textContent='Código nuevo detectado. Consultando Betterware…';consultBetterware(code,'register')}}
+ else{
+  const p=findProduct(code);
+  $('barcode').value=code;
+  if(p){
+   const name=p.name||p.description||p.code;
+   $('scanStatus').textContent='Este producto ya existe en tu catálogo.';
+   if(confirm('El producto "'+name+'" (SKU '+p.code+') ya está registrado en tu catálogo. ¿Quieres editarlo ahora?')){
+    window.editProduct(encodeURIComponent(p.code));
+    $('scanStatus').textContent='Editando el producto existente. Guarda los cambios cuando termines.';
+   }else{
+    $('scanStatus').textContent='El producto ya existe. No se creó un registro duplicado.';
+   }
+  }else{
+   $('name').focus();
+   $('scanStatus').textContent='Código nuevo detectado. Consultando Betterware…';
+   consultBetterware(code,'register');
+  }
+ }
 }
 function stopCamera(){scanning=false;if(zxingReader){try{zxingReader.reset()}catch(e){}zxingReader=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('scanner').srcObject=null;$('scanner').style.display='none';$('startCamera').disabled=false;$('stopCamera').disabled=true}
 $('startCamera').onclick=()=>startCamera('register');$('verifyCamera').onclick=()=>startCamera('verify');$('stopCamera').onclick=stopCamera;$('lookupCamera').onclick=()=>startCamera('lookup');$('fetchBetterware').onclick=()=>consultBetterware($('barcode').value,'register');$('barcode').addEventListener('keydown',e=>{if(e.key==='Enter')consultBetterware($('barcode').value,'register')});
