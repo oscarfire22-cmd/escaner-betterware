@@ -1,0 +1,11 @@
+{
+  "name": "Escáner Betterware",
+  "short_name": "Betterware",
+  "description": "Escáner y catálogo personal de productos Betterware",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#101827",
+  "icons": []
+}
