@@ -124,8 +124,22 @@ export default async (request) => {
 
       // Consultar también la ficha HTML: Betterware coloca algunas ofertas
       // condicionadas en el contenido de la página, no en variants.price.
-      const pageHtml = await getHtml(canonicalUrl);
-      const offer = readCatalogOffer(pageHtml, sku, cleanText(product.title || candidate.title));
+      const productName = cleanText(product.title || candidate.title);
+      const collectionSlug = String(candidate.product_type || "").trim().toLowerCase()
+        .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      let pageHtml = "";
+      let offer = null;
+      // La tienda puede mostrar el precio condicionado en la vista de colección,
+      // no en la ficha individual. Probar primero la colección del tipo de producto.
+      if (collectionSlug) {
+        pageHtml = await getHtml(new URL("/collections/" + collectionSlug + "/products/" + encodeURIComponent(handle), STORE).toString());
+        offer = readCatalogOffer(pageHtml, sku, productName);
+      }
+      if (!offer) {
+        pageHtml = await getHtml(canonicalUrl);
+        offer = readCatalogOffer(pageHtml, sku, productName);
+      }
 
       let regularPrice = hasStandardDiscount ? comparePrice : basePrice;
       let promoPrice = hasStandardDiscount ? basePrice : null;
