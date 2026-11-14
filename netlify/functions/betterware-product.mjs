@@ -70,18 +70,14 @@ function readCatalogOffer(html, sku, productName) {
   const conditionMatch = conditionPatterns.map(re => nearby.match(re)).find(Boolean);
   if (!conditionMatch) return null;
 
-  const amounts = [...nearby.matchAll(/(?:\$|MXN)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi)]
-    .map(m => Number(m[1].replace(/,/g, "")))
-    .filter(n => Number.isFinite(n) && n > 0 && n < 100000);
-  const unique = [...new Set(amounts)];
-  if (!unique.length) return { note: conditionMatch[0], promoPrice: null, regularPrice: null };
-
-  // Shopify price se usa como referencia de comparación para elegir el menor
-  // valor distinto encontrado en el bloque, sin inventar un monto.
+  // No inferir precios a partir de cantidades sueltas del HTML. En la página
+  // pueden aparecer importes de envío, ahorro, cuotas u otros productos.
+  // Los precios solo se toman de los campos estructurados de Shopify
+  // (price / compare_at_price), que sí pertenecen a la variante exacta.
   return {
     note: conditionMatch[0].trim(),
-    promoPrice: Math.min(...unique),
-    regularPrice: Math.max(...unique)
+    promoPrice: null,
+    regularPrice: null
   };
 }
 
