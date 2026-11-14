@@ -70,7 +70,7 @@ function readCatalogOffer(html, sku, productName) {
   const conditionMatch = conditionPatterns.map(re => nearby.match(re)).find(Boolean);
   if (!conditionMatch) return null;
 
-  const amounts = [...nearby.matchAll(/(?:\$\s*|MXN\s*)?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?=\s*(?:\$|MXN)?)/gi)]
+  const amounts = [...nearby.matchAll(/(?:\$|MXN)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi)]
     .map(m => Number(m[1].replace(/,/g, "")))
     .filter(n => Number.isFinite(n) && n > 0 && n < 100000);
   const unique = [...new Set(amounts)];
