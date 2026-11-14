@@ -139,7 +139,10 @@ async function consultBetterware(code,mode='register'){
    if(!$('description').value.trim())$('description').value=data.description||'';
    if($('regularPrice').value===''&&data.regularPrice!=null)$('regularPrice').value=data.regularPrice;
    if($('promoPrice').value===''&&data.promoPrice!=null)$('promoPrice').value=data.promoPrice;
-   $('scanStatus').textContent='Datos oficiales encontrados. Revisa la información y completa tu costo (opcional) y precio de venta.';
+   if(!$('promoType').value.trim()&&data.promoType)$('promoType').value=data.promoType;
+   if(!$('promoConditions').value.trim()&&(data.promoConditions||data.promoNote))$('promoConditions').value=data.promoConditions||data.promoNote;
+   if(!$('promoValidUntil').value.trim()&&data.promoValidUntil)$('promoValidUntil').value=data.promoValidUntil;
+   $('scanStatus').textContent=data.promoPrice!=null?'Datos del producto y promoción encontrados. Revisa la condición y completa tu costo y precio de venta.':'Datos del producto encontrados. No se detectó una oferta condicionada en la ficha consultada; verifica el catálogo vigente.';
   }else $('scanStatus').textContent='Verificación terminada. No se modificó tu catálogo.';
  }catch(err){$('betterwareResult').innerHTML=`<div class="notice" style="margin-top:10px">No se pudo recuperar la ficha automáticamente: ${escapeHtml(err.message)}. El código se conservó para que puedas completar el registro manualmente.</div>`;$('scanStatus').textContent='Consulta automática no disponible.'}
  finally{$('fetchBetterware').disabled=false}
