@@ -1,7 +1,17 @@
 const STORE = "https://betterware.com.mx";
 
 function cleanText(value) {
-  return String(value ?? "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim();
+  return String(value ?? "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function money(value) {
@@ -19,6 +29,60 @@ async function getJson(url) {
   });
   if (!response.ok) throw new Error("Betterware respondió HTTP " + response.status);
   return response.json();
+}
+
+async function getHtml(url) {
+  const response = await fetch(url, {
+    headers: {
+      "Accept": "text/html,application/xhtml+xml",
+      "User-Agent": "Mozilla/5.0 (compatible; EscanerBetterware/1.0)"
+    },
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!response.ok) return "";
+  return response.text();
+}
+
+// Betterware puede publicar el precio condicionado en la página de colección,
+// mientras que el endpoint Shopify .js solo entrega el precio base.
+function readCatalogOffer(html, sku, productName) {
+  if (!html) return null;
+  const text = cleanText(html);
+  const skuAt = text.indexOf(String(sku));
+  const nameAt = productName ? text.toLowerCase().indexOf(productName.toLowerCase()) : -1;
+  const at = skuAt >= 0 ? skuAt : nameAt;
+  const nearby = at >= 0
+    ? text.slice(Math.max(0, at - 900), Math.min(text.length, at + 2200))
+    : text;
+  const context = nearby.toLowerCase();
+
+  // Solo aceptar un precio de oferta cuando el propio bloque del producto
+  // contiene una condición promocional reconocible.
+  const conditionPatterns = [
+    /ahorra al comprar\s+\d+\s+productos? de todo el cat[aá]logo/i,
+    /al comprar\s+\d+\s+productos? del cat[aá]logo/i,
+    /compra\s+\d+\s+productos? del cat[aá]logo/i,
+    /ll[eé]vatelo?\s+a precio/i,
+    /precio de oferta/i,
+    /precio promocional/i,
+    /h[ií]per oferta|mega oferta/i
+  ];
+  const conditionMatch = conditionPatterns.map(re => nearby.match(re)).find(Boolean);
+  if (!conditionMatch) return null;
+
+  const amounts = [...nearby.matchAll(/(?:\$\s*|MXN\s*)?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?=\s*(?:\$|MXN)?)/gi)]
+    .map(m => Number(m[1].replace(/,/g, "")))
+    .filter(n => Number.isFinite(n) && n > 0 && n < 100000);
+  const unique = [...new Set(amounts)];
+  if (!unique.length) return { note: conditionMatch[0], promoPrice: null, regularPrice: null };
+
+  // Shopify price se usa como referencia de comparación para elegir el menor
+  // valor distinto encontrado en el bloque, sin inventar un monto.
+  return {
+    note: conditionMatch[0].trim(),
+    promoPrice: Math.min(...unique),
+    regularPrice: Math.max(...unique)
+  };
 }
 
 export default async (request) => {
@@ -52,19 +116,49 @@ export default async (request) => {
       const exact = variants.find(variant => String(variant.sku || "").trim().toLowerCase() === sku.toLowerCase());
       if (!exact) continue;
 
-      const price = money(exact.price);
-      const compare = money(exact.compare_at_price);
-      const hasDiscount = compare !== null && price !== null && compare > price;
+      const basePrice = money(exact.price);
+      const comparePrice = money(exact.compare_at_price);
+      const hasStandardDiscount = comparePrice !== null && basePrice !== null && comparePrice > basePrice;
       const image = Array.isArray(product.images) && product.images.length ? product.images[0] : (product.featured_image || null);
+      const canonicalUrl = new URL("/products/" + handle, STORE).toString();
+
+      // Consultar también la ficha HTML: Betterware coloca algunas ofertas
+      // condicionadas en el contenido de la página, no en variants.price.
+      const pageHtml = await getHtml(canonicalUrl);
+      const offer = readCatalogOffer(pageHtml, sku, cleanText(product.title || candidate.title));
+
+      let regularPrice = hasStandardDiscount ? comparePrice : basePrice;
+      let promoPrice = hasStandardDiscount ? basePrice : null;
+      let promoNote = "";
+      let promoType = "";
+      let promoConditions = "";
+
+      if (offer) {
+        promoNote = offer.note;
+        promoConditions = offer.note;
+        promoType = /h[ií]per oferta/i.test(offer.note) ? "Híper oferta" :
+          /mega oferta/i.test(offer.note) ? "Mega oferta" : "Oferta condicionada";
+        // Si la página publica dos precios en el bloque de oferta, usar el
+        // menor como promocional y el mayor como regular.
+        if (offer.promoPrice !== null && offer.regularPrice !== null && offer.promoPrice < offer.regularPrice) {
+          promoPrice = offer.promoPrice;
+          regularPrice = offer.regularPrice;
+        }
+      }
+
       return Response.json({
         sku,
         name: cleanText(product.title || candidate.title),
         description: cleanText(product.description || ""),
-        regularPrice: hasDiscount ? compare : price,
-        promoPrice: hasDiscount ? price : null,
-        promoNote: "",
+        regularPrice,
+        promoPrice,
+        promoNote,
+        promoType,
+        promoConditions,
+        promoValidUntil: "",
         image,
-        url: new URL("/products/" + handle, STORE).toString()
+        url: canonicalUrl,
+        offerSource: offer ? "product-page" : "shopify-product"
       }, {
         headers: { "Cache-Control": "public, max-age=300, s-maxage=300" }
       });
